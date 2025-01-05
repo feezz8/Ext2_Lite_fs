@@ -254,7 +254,7 @@ ext2_dirent *ext2_find_entry(struct inode *dir, const struct qstr *child,
 	int namelen = child->len;
 	unsigned reclen = EXT2_DIR_REC_LEN(namelen);
 	unsigned long npages = dir_pages(dir);
-	unsigned long i;
+	unsigned long i, start;
 	ext2_dirent *de;
 	char *kaddr;
 
@@ -262,11 +262,44 @@ ext2_dirent *ext2_find_entry(struct inode *dir, const struct qstr *child,
 		return ERR_PTR(-ENOENT);
 
 	/* Scan all the pages of the directory to find the requested name. */
-	for (i=0; i < npages; i++) {
-		/* ? */
+	start = ei->i_dir_start_lookup;
+	if (start >= npages) 
+		start = 0;	
+	for (i=start; i < npages; i++) {	
+		char *kaddr = ext2_get_folio(dir, i, 0, foliop);
+		if(IS_ERR(kaddr))
+			return ERR_CAST(kaddr);
+		
+		de = (ext2_dirent *) kaddr;
+		kaddr += ext2_last_byte(dir, i) - reclen;
+		while((char *) de <= kaddr){
+			if(de->rec_len == 0){
+				ext2_error(dir->i_sb, __func__, "Zero length directory entry");
+				folio_release_kmap(*foliop, de);
+				goto out;
+			}
+			if(ext2_match(namelen, name, de)){
+				ei->i_dir_start_lookup = i;
+				goto found:
+			}
+			de = ext2_next_entry(de);
+		}
+		folio_release_kmap(*foliop, kaddr);
 	}
+	/*If we reach this that means
+	 next folio is past the blocks we've got (i >= npages)
+	 return appropriate error message*/
+	ext2_error(dir->i_sb, __func__,
+				"dir %lu size %lld exceeds block count %llu",
+				dir->i_ino, dir->i_size,
+				(unsigned long long)dir->i_blocks);
+	goto out;
+
+out:
 	return ERR_PTR(-ENOENT);
-}
+found:
+	return de;
+}	
 
 ext2_dirent *ext2_dotdot(struct inode *dir, struct folio **foliop)
 {

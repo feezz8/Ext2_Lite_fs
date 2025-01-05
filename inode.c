@@ -236,6 +236,7 @@ static struct ext2_inode *ext2_get_inode(struct super_block *sb, ino_t ino,
 	unsigned long block;
 	unsigned long offset;
 	struct ext2_group_desc *gdp;
+
 	unsigned long inodes_pg = EXT2_INODES_PER_GROUP(sb);
 	int inode_sz = EXT2_INODE_SIZE(sb);
 	unsigned long blocksize = sb->s_blocksize;
@@ -248,13 +249,21 @@ static struct ext2_inode *ext2_get_inode(struct super_block *sb, ino_t ino,
 
 	/* Figure out in which block is the inode we are looking for and get
 	 * its group block descriptor. */
-	/* ? */
-
+	block_group = (ino - 1) /inodes_pg;
+	gdp = ext2_get_group_desc(sb, block_group, NULL);
+	if(!gdp)
+		goto gdp;
 	/* Figure out the offset within the block group inode table */
-	/* ? */
-
+	offset = ((ino - 1) % inodes_pg*inodes_sz);
+	block = le32_to_cpu(gdp->bg_inode_table) +
+			(offset >> blocksize);
+	if(!(bh = sb_bread(sb, block)))
+		goto eio;
 	/* Return the pointer to the appropriate ext2_inode */
-	/* ? */
+	*p = bh;
+	offset &= block_sz - 1;
+	retrun (struct ext2_inode *) bh->b_data + offset;
+
 
 einval:
 	ext2_error(sb, __func__, "bad inode number: %lu", (unsigned long)ino);
@@ -262,6 +271,8 @@ einval:
 eio:
 	ext2_error(sb, __func__, "unable to read inode block - inode=%lu, block=%lu",
 	           (unsigned long)ino, block);
+	return ERR_PTR(-EIO);
+egdp:
 	return ERR_PTR(-EIO);
 }
 
@@ -278,7 +289,8 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	struct inode *inode;
 	long ret = -EIO;
 	int n;
-
+	uid_t i_uid;
+	gid_t i_gid;
 	ext2_debug("request to get ino: %lu\n", ino);
 
 	/*
@@ -308,8 +320,10 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	 * Fill the necessary fields of the VFS inode structure.
 	 */
 	inode->i_mode = le16_to_cpu(raw_inode->i_mode);
-	i_uid_write(inode, (uid_t)le16_to_cpu(raw_inode->i_uid));
-	i_gid_write(inode, (gid_t)le16_to_cpu(raw_inode->i_gid));
+	i_uid = (uid_t)le16_to_cpu(raw_inode->i_uid);
+	i_gid = (gid_t)le16_to_cpu(raw_inode->i_gid);
+	i_uid_write(inode, i_uid);
+	i_gid_write(inode, i_gid);
 	set_nlink(inode, le16_to_cpu(raw_inode->i_links_count));
 	inode_set_atime(inode, (signed)le32_to_cpu(raw_inode->i_atime), 0);
 	inode_set_ctime(inode, (signed)le32_to_cpu(raw_inode->i_ctime), 0);
@@ -325,14 +339,17 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	}
 	//> Setup the {inode,file}_operations structures depending on the type.
 	if (S_ISREG(inode->i_mode)) {
-		/* ? */
+		ext2_set_file_ops(inode);
 	} else if (S_ISDIR(inode->i_mode)) {
-		/* ? */
+		inode->i_op = &ext2_dir_inode_operations;
+		inode->i_fop = &ext2_dir_operations;
+		inode->i_mapping->a_ops = &ext2_aops;
 	} else if (S_ISLNK(inode->i_mode)) {
 		if (ext2_inode_is_fast_symlink(inode)) {
 			inode->i_op = &simple_symlink_inode_operations;
 			inode->i_link = (char *)ei->i_data;
-			nd_terminate_link(ei->i_data, inode->i_size, sizeof(ei->i_data) - 1);
+			nd_terminate_link(ei->i_data, inode->i_size, 
+					sizeof(ei->i_data) - 1);
 		} else {
 			inode->i_op = &page_symlink_inode_operations;
 			inode_nohighmem(inode);

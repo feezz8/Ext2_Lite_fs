@@ -318,9 +318,33 @@ static int ext2_allocate_in_bg(struct super_block *sb, int group,
 	ext2_fsblk_t group_last_block = ext2_group_last_block_no(sb, group);
 	ext2_grpblk_t nblocks = group_last_block - group_first_block + 1;
 	ext2_grpblk_t first_free_bit;
-	unsigned long num;
+	unsigned long num = 0;
 
-	/* ? */
+	first_free_bit = 0;
+
+	ext2_grpblk_t grp_goal = find_next_usable_block(first_free_bit, bitmap_bh, 
+														nblocks);
+	if(grp_goal < 0){
+		goto fail_access;
+	
+	}
+	
+	for (; num < *count && grp_goal < end; grp_goal++) {
+		if (ext2_set_bit_atomic(sb_bgl_lock(EXT2_SB(sb), group),
+					grp_goal, bitmap_bh->b_data)) {
+			if (num == 0)
+				continue;
+			break;
+		}
+		num++;
+	}
+
+	if (num == 0)
+		goto fail_access;
+
+	*count = num;
+	return grp_goal - num;
+fail_access:
 	return -1;
 }
 

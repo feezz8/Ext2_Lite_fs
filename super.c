@@ -766,20 +766,25 @@ static int __init init_ext2_fs(void)
 
 	/* Register ext2-lite filesystem in the kernel */
 	/* If an error occurs remember to call destroy_inodecache() */
-	/* ? */
+	err = register_filesystem(&ext2_fs_type);  //ext2-lite is also defined as ext2_fs_type
+	if(err)
+		goto out;
+	return 0;
 
-	return err;
+	out:
+		destroy_indoecache();
+		return err;
+
 }
 
 static void __exit exit_ext2_fs(void)
 {
 	/* Unregister ext2-lite filesystem from the kernel */
-	/* ? */
-
+	unregister_filesystem(&ext2_fs_type);
 	destroy_inodecache();
 }
 
-MODULE_AUTHOR("ADD YOUR NAME HERE"); /* ? */
+MODULE_AUTHOR("Konstantinos Fezos"); /* ? */
 MODULE_DESCRIPTION("Second Extended Filesystem Lite Version from CSLab");
 MODULE_LICENSE("GPL");
 module_init(init_ext2_fs)
