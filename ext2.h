@@ -274,6 +274,8 @@ struct ext2_inode_info {
 	__u32 i_block_group;
 
 	struct inode vfs_inode; //> The VFS inode structure.
+
+	__u32 i_dir_start_lookup;
 };
 
 /* Inode dynamic state flags */

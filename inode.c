@@ -252,17 +252,17 @@ static struct ext2_inode *ext2_get_inode(struct super_block *sb, ino_t ino,
 	block_group = (ino - 1) /inodes_pg;
 	gdp = ext2_get_group_desc(sb, block_group, NULL);
 	if(!gdp)
-		goto gdp;
+		goto egdp;
 	/* Figure out the offset within the block group inode table */
-	offset = ((ino - 1) % inodes_pg*inodes_sz);
+	offset = ((ino - 1) % inodes_pg*inode_sz);
 	block = le32_to_cpu(gdp->bg_inode_table) +
 			(offset >> blocksize);
 	if(!(bh = sb_bread(sb, block)))
 		goto eio;
 	/* Return the pointer to the appropriate ext2_inode */
 	*p = bh;
-	offset &= block_sz - 1;
-	retrun (struct ext2_inode *) bh->b_data + offset;
+	offset &= blocksize - 1;
+	return (struct ext2_inode *) bh->b_data + offset;
 
 
 einval:
@@ -280,7 +280,12 @@ void ext2_set_inode_flags(struct inode *inode)
 {
 	inode->i_flags &= ~(S_SYNC|S_APPEND|S_IMMUTABLE|S_NOATIME|S_DIRSYNC);
 }
-
+/*
+void ext2_set_file_ops(struct inode *inode){
+	inode->i_op = &ext2_file_inode_operations;
+	inode->i_fop = &ext2_file_operations;
+}
+*/
 struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 {
 	struct ext2_inode_info *ei;
@@ -339,7 +344,8 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	}
 	//> Setup the {inode,file}_operations structures depending on the type.
 	if (S_ISREG(inode->i_mode)) {
-		ext2_set_file_ops(inode);
+		inode->i_op = &ext2_file_inode_operations;
+		inode->i_fop = &ext2_file_operations;
 	} else if (S_ISDIR(inode->i_mode)) {
 		inode->i_op = &ext2_dir_inode_operations;
 		inode->i_fop = &ext2_dir_operations;

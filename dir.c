@@ -255,6 +255,7 @@ ext2_dirent *ext2_find_entry(struct inode *dir, const struct qstr *child,
 	unsigned reclen = EXT2_DIR_REC_LEN(namelen);
 	unsigned long npages = dir_pages(dir);
 	unsigned long i, start;
+	struct ext2_inode_info *ei = EXT2_I(dir);
 	ext2_dirent *de;
 	char *kaddr;
 
@@ -280,7 +281,7 @@ ext2_dirent *ext2_find_entry(struct inode *dir, const struct qstr *child,
 			}
 			if(ext2_match(namelen, name, de)){
 				ei->i_dir_start_lookup = i;
-				goto found:
+				goto found;
 			}
 			de = ext2_next_entry(de);
 		}

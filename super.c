@@ -771,9 +771,9 @@ static int __init init_ext2_fs(void)
 		goto out;
 	return 0;
 
-	out:
-		destroy_indoecache();
-		return err;
+out:
+	destroy_inodecache();
+	return err;
 
 }
 
@@ -784,7 +784,7 @@ static void __exit exit_ext2_fs(void)
 	destroy_inodecache();
 }
 
-MODULE_AUTHOR("Konstantinos Fezos"); /* ? */
+MODULE_AUTHOR("Konstantinos Fezos/ Odysseas Arthouros Rigas Tsouknidas"); /* ? */
 MODULE_DESCRIPTION("Second Extended Filesystem Lite Version from CSLab");
 MODULE_LICENSE("GPL");
 module_init(init_ext2_fs)
