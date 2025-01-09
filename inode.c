@@ -249,7 +249,7 @@ static struct ext2_inode *ext2_get_inode(struct super_block *sb, ino_t ino,
 
 	/* Figure out in which block is the inode we are looking for and get
 	 * its group block descriptor. */
-	block_group = (ino - 1) /inodes_pg;
+	block_group = (ino - 1) / inodes_pg;
 	gdp = ext2_get_group_desc(sb, block_group, NULL);
 	if(!gdp)
 		goto egdp;
@@ -333,9 +333,10 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	inode_set_atime(inode, (signed)le32_to_cpu(raw_inode->i_atime), 0);
 	inode_set_ctime(inode, (signed)le32_to_cpu(raw_inode->i_ctime), 0);
 	inode_set_mtime(inode, (signed)le32_to_cpu(raw_inode->i_mtime), 0);
-	ei->i_dtime = le32_to_cpu(raw_inode->i_dtime);
+	//ei->i_dtime = le32_to_cpu(raw_inode->i_dtime);
 	inode->i_blocks = le32_to_cpu(raw_inode->i_blocks);
 	inode->i_size = le32_to_cpu(raw_inode->i_size);
+	ei = EXT2_I(inode);
 	if (i_size_read(inode) < 0) {
 		ret = -EUCLEAN;
 		brelse(bh);
@@ -374,7 +375,7 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	/*
 	 * Fill the necessary fields of the ext2_inode_info structure.
 	 */
-	ei = EXT2_I(inode);
+
 	ei->i_dtime = le32_to_cpu(raw_inode->i_dtime);
 	ei->i_flags = le32_to_cpu(raw_inode->i_flags);
 	ext2_set_inode_flags(inode);
