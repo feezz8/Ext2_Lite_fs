@@ -239,8 +239,9 @@ static struct ext2_inode *ext2_get_inode(struct super_block *sb, ino_t ino,
 
 	unsigned long inodes_pg = EXT2_INODES_PER_GROUP(sb);
 	int inode_sz = EXT2_INODE_SIZE(sb);
-	unsigned long blocksize = sb->s_blocksize;
-
+	//unsigned long blocksize = sb->s_blocksize;
+	printk("Fez is here\n");
+	
 	*p = NULL;
 	/* Check the validity of the given inode number. */
 	if ((ino != EXT2_ROOT_INO && ino < EXT2_FIRST_INO(sb)) ||
@@ -249,20 +250,20 @@ static struct ext2_inode *ext2_get_inode(struct super_block *sb, ino_t ino,
 
 	/* Figure out in which block is the inode we are looking for and get
 	 * its group block descriptor. */
-	block_group = (ino - 1) / inodes_pg;
+	block_group = (ino - 1) / EXT2_INODES_PER_GROUP(sb);
 	gdp = ext2_get_group_desc(sb, block_group, NULL);
 	if(!gdp)
 		goto egdp;
 	/* Figure out the offset within the block group inode table */
-	offset = ((ino - 1) % inodes_pg*inode_sz);
+	offset = ((ino - 1) % EXT2_INODES_PER_GROUP(sb)) * EXT2_INODE_SIZE(sb);
 	block = le32_to_cpu(gdp->bg_inode_table) +
-			(offset >> blocksize);
+			(offset >> EXT2_BLOCK_SIZE_BITS(sb));
 	if(!(bh = sb_bread(sb, block)))
 		goto eio;
 	/* Return the pointer to the appropriate ext2_inode */
 	*p = bh;
-	offset &= blocksize - 1;
-	return (struct ext2_inode *) bh->b_data + offset;
+	offset &= (EXT2_BLOCK_SIZE(sb) - 1);
+	return (struct ext2_inode *) (bh->b_data + offset);
 
 
 einval:
@@ -315,6 +316,7 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	 */
 	raw_inode = ext2_get_inode(inode->i_sb, ino, &bh);
 	if (IS_ERR(raw_inode)) {
+		printk("We have error on raw_inode\n");
 		ret = PTR_ERR(raw_inode);
 		brelse(bh);
 		iget_failed(inode);
@@ -325,6 +327,7 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	 * Fill the necessary fields of the VFS inode structure.
 	 */
 	inode->i_mode = le16_to_cpu(raw_inode->i_mode);
+	printk("We got mode %d for inode\n", raw_inode->i_mode);
 	i_uid = (uid_t)le16_to_cpu(raw_inode->i_uid);
 	i_gid = (gid_t)le16_to_cpu(raw_inode->i_gid);
 	i_uid_write(inode, i_uid);
@@ -333,10 +336,10 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	inode_set_atime(inode, (signed)le32_to_cpu(raw_inode->i_atime), 0);
 	inode_set_ctime(inode, (signed)le32_to_cpu(raw_inode->i_ctime), 0);
 	inode_set_mtime(inode, (signed)le32_to_cpu(raw_inode->i_mtime), 0);
+	ei = EXT2_I(inode);
 	//ei->i_dtime = le32_to_cpu(raw_inode->i_dtime);
 	inode->i_blocks = le32_to_cpu(raw_inode->i_blocks);
 	inode->i_size = le32_to_cpu(raw_inode->i_size);
-	ei = EXT2_I(inode);
 	if (i_size_read(inode) < 0) {
 		ret = -EUCLEAN;
 		brelse(bh);
@@ -364,9 +367,11 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 		}
 	} else {
 		inode->i_op = &ext2_special_inode_operations;
-		if (raw_inode->i_block[0])
+		if (raw_inode->i_block[0]){
 			init_special_inode(inode, inode->i_mode,
 			   old_decode_dev(le32_to_cpu(raw_inode->i_block[0])));
+			printk("We have the special inode: %d\n", inode->i_mode);
+		}
 		else 
 			init_special_inode(inode, inode->i_mode,
 			   new_decode_dev(le32_to_cpu(raw_inode->i_block[1])));
@@ -375,7 +380,6 @@ struct inode *ext2_iget(struct super_block *sb, unsigned long ino)
 	/*
 	 * Fill the necessary fields of the ext2_inode_info structure.
 	 */
-
 	ei->i_dtime = le32_to_cpu(raw_inode->i_dtime);
 	ei->i_flags = le32_to_cpu(raw_inode->i_flags);
 	ext2_set_inode_flags(inode);

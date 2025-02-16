@@ -354,6 +354,7 @@ static int ext2_allocate_in_bg(struct super_block *sb, int group,
 
 	*count = num;
 	return grp_goal - num;
+	
 fail_access:
 	return -1;
 }
